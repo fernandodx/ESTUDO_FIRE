@@ -1,7 +1,21 @@
-<html ng-app="sampleApp" >
+<html ng-app="appSegueme" >
 <head>
 	<meta charset="UTF-8">
 	<title>Lista de Contatos</title>
+
+<style type="text/css">
+  .vcenter {
+      display: inline-block;
+      vertical-align: middle;
+      float: none;
+    }
+
+</style>
+
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
 
 	<!-- AngularJS -->
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular.min.js"></script>
@@ -12,26 +26,495 @@
 	<!-- AngularFire -->
 	<script src="https://cdn.firebase.com/libs/angularfire/1.1.3/angularfire.min.js"></script>
 
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
 	<script type="text/javascript">
-		
-		var app = angular.module("sampleApp",  ["firebase"]);
-		
-		app.controller("SampleCtrl", function($scope, $firebaseObject) {
-	  		var ref = new Firebase("https://streetway.firebaseio.com");
 
-	 		 // download the data into a local object
-	  		$scope.data = $firebaseObject(ref);
 
-	  		// putting a console.log here won't work, see below
-	  		console.log($scope.data);
+  /*! angular-base64-upload - v0.1.13
+* https://github.com/adonespitogo/angular-base64-upload
+* Copyright (c) Adones Pitogo <pitogo.adones@gmail.com> [September 28, 2015]
+* Licensed MIT */
+(function (window, undefined) {
+
+      'use strict';
+
+      /* istanbul ignore next */
+      window._arrayBufferToBase64 = function ( buffer ) { //http://stackoverflow.com/questions/9267899/arraybuffer-to-base64-encoded-string
+        var binary = '';
+        var bytes = new Uint8Array( buffer );
+        var len = bytes.byteLength;
+        for (var i = 0; i < len; i++) {
+            binary += String.fromCharCode( bytes[ i ] );
+        }
+        return window.btoa( binary );
+      };
+
+
+      var mod = window.angular.module('naif.base64', []);
+
+      mod.directive('baseSixtyFourInput', [
+        '$window',
+        '$q',
+        function ($window, $q) {
+
+          var isolateScope = {
+            onChange: '&',
+            parser: '&'
+          };
+
+          var FILE_READER_EVENTS = ['onabort', 'onerror', 'onloadstart', 'onloadend', 'onprogress', 'onload'];
+          for (var i = FILE_READER_EVENTS.length - 1; i >= 0; i--) {
+            var e = FILE_READER_EVENTS[i];
+            isolateScope[e] = '&';
+          }
+
+          return {
+            restrict: 'A',
+            require: '?ngModel',
+            scope: isolateScope,
+            link: function (scope, elem, attrs, ngModel) {
+
+              /* istanbul ignore if */
+              if (!ngModel) {
+                return;
+              }
+
+              // need set falsy to activate required state when user predefines value for model
+              ngModel.$setViewValue(null);
+              ngModel.$setPristine();
+
+              var rawFiles = [];
+              var fileObjects = [];
+
+              function _attachHandlerForEvent (eventName, handler, fReader, file, fileObject) {
+                fReader[eventName] =  function (e) {
+                  handler()(e, fReader, file, rawFiles, fileObjects, fileObject);
+                };
+              }
+
+              function _readerOnLoad (fReader, file, fileObject) {
+
+                return function (e) {
+
+                  var buffer = e.target.result;
+                  var promise;
+
+                  fileObject.base64 = $window._arrayBufferToBase64(buffer);
+
+                  if (attrs.parser) {
+                    promise = $q.when(scope.parser()(file, fileObject));
+                  }
+                  else {
+                    promise = $q.when(fileObject);
+                  }
+
+                  promise.then(function (fileObj) {
+                    fileObjects.push(fileObj);
+                    _setViewValue();
+                  });
+
+                  if (attrs.onload) {
+                    scope.onload()(e, fReader,  file, rawFiles, fileObjects, fileObject);
+                  }
+
+                };
+
+              }
+
+              function _attachEventHandlers (fReader, file, fileObject) {
+
+                for (var i = FILE_READER_EVENTS.length - 1; i >= 0; i--) {
+                  var e = FILE_READER_EVENTS[i];
+                  if (attrs[e] && e !== 'onload') { // don't attach handler to onload yet
+                    _attachHandlerForEvent(e, scope[e], fReader, file, fileObject);
+                  }
+                }
+
+                fReader.onload = _readerOnLoad(fReader, file, fileObject);
+              }
+
+              function _setViewValue () {
+                  var newVal = attrs.multiple ? fileObjects : fileObjects[0];
+                  ngModel.$setViewValue(newVal);
+                  if (angular.isFunction(ngModel.$validate)) {
+                    ngModel.$validate();
+                  }
+
+                  var v = angular.version.full.split('.');
+
+                  // manually run parsers for angular versions >= 1.3.4 since they are not triggered automatically on ngModel.$setViewValue
+                  if (v[0] === '1' && v[1] === '3' && parseInt(v[2]) >= 4) {
+                    var val = ngModel.$viewValue;
+                    _maxsize(val);
+                    _minsize(val);
+                    _maxnum(val);
+                    _minnum(val);
+                  }
+              }
+
+              function _readFiles () {
+
+                for (var i = rawFiles.length - 1; i >= 0; i--) {
+
+                  var reader = new $window.FileReader();
+                  var file = rawFiles[i];
+                  var fileObject = {};
+
+                  fileObject.filetype = file.type;
+                  fileObject.filename = file.name;
+                  fileObject.filesize = file.size;
+
+                  _attachEventHandlers(reader, file, fileObject);
+
+                  reader.readAsArrayBuffer(file);
+
+                }
+
+              }
+
+              function _onChange (e) {
+                if (attrs.onChange) {
+                  scope.onChange()(e, rawFiles);
+                }
+              }
+
+              elem.on('change', function(e) {
+
+                if(!e.target.files.length) {
+                  return;
+                }
+
+                fileObjects = [];
+                fileObjects = angular.copy(fileObjects);
+                rawFiles = e.target.files; // use event target so we can mock the files from test
+                _readFiles();
+                _onChange(e);
+
+              });
+
+              // VALIDATIONS =========================================================
+
+              function _maxnum (val) {
+                if (attrs.maxnum && attrs.multiple && val) {
+                  var valid = val.length <= parseInt(attrs.maxnum);
+                  ngModel.$setValidity('maxnum', valid);
+                }
+                return val;
+              }
+
+              function _minnum (val) {
+                if (attrs.minnum && attrs.multiple && val) {
+                  var valid = val.length >= parseInt(attrs.minnum);
+                  ngModel.$setValidity('minnum', valid);
+                }
+                return val;
+              }
+
+              function _maxsize (val) {
+                var valid = true;
+
+                if (attrs.maxsize && val) {
+                  var max = parseFloat(attrs.maxsize) * 1000;
+
+                  if (attrs.multiple) {
+                    for (var i = 0; i < val.length; i++) {
+                      var file = val[i];
+                      if (file.filesize > max) {
+                        valid = false;
+                        break;
+                      }
+                    }
+                  }
+                  else {
+                    valid = val.filesize <= max;
+                  }
+                  ngModel.$setValidity('maxsize', valid);
+                }
+
+                return val;
+              }
+
+              function _minsize (val) {
+                var valid = true;
+                var min = parseFloat(attrs.minsize) * 1000;
+
+                if (attrs.minsize && val) {
+                  if (attrs.multiple) {
+                    for (var i = 0; i < val.length; i++) {
+                      var file = val[i];
+                      if (file.filesize < min) {
+                        valid = false;
+                        break;
+                      }
+                    }
+                  }
+                  else {
+                    valid = val.filesize >= min;
+                  }
+                  ngModel.$setValidity('minsize', valid);
+                }
+
+                return val;
+              }
+
+              ngModel.$parsers.push(_maxnum);
+              ngModel.$parsers.push(_minnum);
+              ngModel.$parsers.push(_maxsize);
+              ngModel.$parsers.push(_minsize);
+
+            }
+          };
+
+      }]);
+
+    })(window);
+
+
+
+
+
+		
+		var app = angular.module("appSegueme", ["firebase", "naif.base64"]);
+		app.controller("seguemeCtrl", function($scope, $firebaseArray) {
+		  var ref = new Firebase("https://seguemepsul.firebaseio.com/EVENTOS");
+		  // create a synchronized array
+		  $scope.eventos = $firebaseArray(ref);
+		  // add new items to the array
+		  // the message is automatically added to our Firebase database!
+		  $scope.addEvento = function(evento) {
+
+        evento.urlImgEvento = evento.urlImgEvento.base64;
+        evento.urlimgEventoGrande = evento.urlimgEventoGrande.base64;
+
+		    $scope.eventos.$add(evento);
+		  };
+
+  			// click on `index.html` above to see $remove() and $save() in action
 		});
+
+    angular.module("appSegueme").directive("uiDate", function($filter) {
+
+      return {
+        require: "ngModel",
+        link: function(scope, element, attrs, ctrl) {
+
+          ctrl.$parsers.push(function (value) {
+
+              if(value.length === 10) {
+                var dtArray = value.split("/");
+                return new Date(dtArray[2], dtArray[1]-1, dtArray[0]).getTime();
+              }
+          });
+
+          ctrl.$formatters.push(function (value){
+              return $filter("date")(value, "dd/MM/yyyy");
+          });
+        }
+
+      }
+
+    });
+
+
+
+  $(function () {
+
+      $(".gerenciarEventos").hide();
+
+     
+      $(".entrar").on("click", function() {
+
+          var login = $("#login").val();
+          var senha = $("#senha").val();
+
+          if(login == 'equipedirigente' && senha == 'equipedirigente') {
+            $(".login").hide();
+            $(".gerenciarEventos").show();
+
+            $("#login").val("");
+            $("#senha").val("");
+
+          }
+
+      });
+
+    });
+
+
+    function logoff() {
+       $(".login").show();
+       $(".gerenciarEventos").hide();
+    }
+
+
+	
 		
 	</script>
 </head>
-<body ng-controller="SampleCtrl">
 
-	
+ <body ng-controller="seguemeCtrl">
+     
+  <div class="jumbotron">
+    
+    <div class="form-group text-center">
+       <img src="http://i.picresize.com/images/2015/11/12/R8aEl.png" width="100" height="100" />
+       <h4 >Eventos Segue-Me Psul</h4>
+    </div>  
+   
+  </div>  
+<form name="formAppSegueme">
 
+ <div class="login" ng-if="acesso.senha != 'ee'">
+      <div class="row container">
+        <div class="row-fluid col-md-4">
+          <div class="form-group">
+              <label class="form-label">Login</label>
+              <input id="login" type="text" class="form-control"/>
+          </div> 
+        </div>
+        <div class="row-fluid col-md-4">
+          <div class="form-group">
+              <label class="form-label">Senha</label>
+              <input id="senha" type="password" class="form-control"/>
+          </div> 
+        </div>
+        <div class="row-fluid col-md-12" >
+            <div class="btn-group">
+                  <button class="btn btn-primary entrar" type="button">Entrar</button>
+              </div>   
+        </div>    
+      </div>  
+  </div>  
+
+
+  <div class="gerenciarEventos">
+
+    <div class="container" >
+       <form ng-submit="addEvento(newEvento)">
+          <fieldset >
+            <legend >Adicionar Novo Evento</legend>
+
+            <div class="row-fluid">
+              <div class="form-group col-md-4">
+                  <label class="form-label">Nome Evento</label>
+                  <input ng-model="newEvento.nmEvento" type="text" class="form-control"/>
+              </div>    
+              <div class="form-group col-md-4">
+                  <label class="form-label">Data Evento</label>
+                  <input ng-model="newEvento.dtEvento" type="text" class="form-control" maxlength="10" placeholder="dd/mm/aaaa" ui-date/>
+              </div>  
+              <div class="form-group col-md-4">
+                  <label class="form-label">Hora Evento</label>
+                  <input ng-model="newEvento.hrEvento" type="text" class="form-control" maxlength="5" placeholder="hh:mm"/>
+              </div>   
+            </div>  
+
+            <div class="row-fluid">
+              <div class="form-group col-md-4">
+                  <label class="form-label">Descrição</label>
+                  <input ng-model="newEvento.descricaoEvento" type="text" class="form-control"/>
+              </div>    
+              <div class="form-group col-md-4">
+                  <label class="form-label">Local</label>
+                  <input ng-model="newEvento.localEvento" type="text" class="form-control" />
+              </div>  
+              <div class="form-group col-md-4">
+                  <label class="form-label">Código</label>
+                  <input ng-model="newEvento.codigoEvento"  type="text" class="form-control"  placeholder="Identificador desse evento."/>
+              </div>   
+            </div>  
+
+            <div class="row-fluid">
+              <div class="form-group col-md-4">
+                  <label class="form-label">Imagem Pequena (.png 100x100) </label>
+                   <input ng-model="newEvento.urlImgEvento" class="form-control" type="file" base-sixty-four-input>
+              </div>    
+              <div class="form-group col-md-4">
+                  <label class="form-label">Imagem Grande (.png ) </label>
+                  <input ng-model="newEvento.urlimgEventoGrande" class="form-control" type="file" base-sixty-four-input>
+              </div>  
+              <div class="form-group col-md-4 alert alert-info">
+                  Utilize o site <a href="http://picresize.com/" target="_blank"> picresize </a> para redimencionar as imagens para o tamaho correto.
+              </div>  
+            </div>  
+
+             <div class="row-fluid col-md-12">
+               <div class="btn-group">
+                  <button class="btn btn-primary" type="submit">Adicionar</button>
+              </div>   
+            </div>  
+          
+          </fieldset>
+      </form>    
+
+      <div class="row"></div>
+
+      <div class="container">
+          <fieldset class="fieldset">
+            <legend >Eventos</legend>
+
+            <table class="table table-striped">
+              <thead>
+               <tr>
+                 <th>Nome Evento</th>
+                 <th>Data</th>
+                 <th>Hora</th>
+                 <th>Descrição</th>
+                 <th>Local</th>
+                 <th>Código</th>
+                 <th>Imagem Pequena</th>
+                 <th>Imagem Grande</th>
+                 <th>Ações</th>
+               </tr>
+              </thead> 
+               
+               <tr ng-repeat="evento in eventos">
+                  <td>{{evento.nmEvento}}</td>
+                  <td>{{evento.dtEvento | date:'dd/MM/yyyy'}}</td>
+                  <td>{{evento.hrEvento}}</td>
+                  <td>{{evento.descricaoEvento}}</td>
+                  <td>{{evento.localEvento}}</td>
+                  <td>{{evento.codigoEvento}}</td>
+                  <td><img width="100" height="100" data-ng-src="data:image/png;base64,{{evento.urlImgEvento}}" /></td>
+                  <td><img width="100" height="100" data-ng-src="data:image/png;base64,{{evento.urlimgEventoGrande}}" /></td>
+                  <td class="text-center"> 
+                      <div class="btn-group vcenter">
+                        <button title="Apagar Evento" class="btn btn-danger"  ng-click="eventos.$remove(evento)">
+                            <i class="fa fa-trash-o"></i>
+                        </button>
+                      </div>
+                  </td>      
+               </tr>  
+
+            </table>
+
+          </fieldset>
+      </div>  
+
+      <div class="row"></div>
+
+      <div class="btn-group">
+          <button class="btn btn-primary" onclick="logoff()" >logoff</button>
+      </div>   
+
+
+
+    </div>
+
+  </div> 
+
+</form>
 
 </body>
+
+
+  <div class="jumbotron">
+     <div class="form-group text-center">
+        <b>Paróquia Nossa Senhora Mãe da Divina Providência </b>
+        <br/>
+        <b> Equipe Dirigentes </b>
+    </div>
+  </div>  
+
 </html>
